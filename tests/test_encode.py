@@ -8,9 +8,10 @@ from tthq.encode import (
     bitrate_kbps,
     build_command,
     build_filters,
+    output_size,
     target_fps,
 )
-from tthq.probe import VideoInfo
+from tthq.probe import VideoInfo, warnings_for
 
 
 def info(width=1920, height=1080, fps=60.0, audio="aac"):
@@ -105,6 +106,30 @@ def test_keyframe_interval_is_two_seconds():
     assert command[command.index("-g") + 1] == "60"
 
 
+def test_landscape_transposes_the_canvas_without_changing_bitrate():
+    vertical = EncodeSettings(resolution=1080)
+    landscape = EncodeSettings(resolution=1080, orientation="landscape")
+    assert output_size(vertical) == (1080, 1920)
+    assert output_size(landscape) == (1920, 1080)
+    assert bitrate_kbps(landscape, 30) == bitrate_kbps(vertical, 30)
+
+
+def test_landscape_filters_target_the_wide_canvas():
+    filters = build_filters(EncodeSettings(orientation="landscape", fit="crop"))
+    assert "crop=1920:1080" in filters
+
+
+def test_landscape_output_does_not_warn_about_a_landscape_source():
+    source = info(width=1920, height=1080)
+    assert any("landscape" in note for note in warnings_for(source))
+    assert not any("landscape" in note for note in warnings_for(source, "landscape"))
+
+
+def test_vertical_source_warns_when_output_is_landscape():
+    notes = warnings_for(info(width=1080, height=1920), "landscape")
+    assert any("portrait" in note for note in notes)
+
+
 def test_invalid_settings_are_rejected():
     with pytest.raises(EncodeError):
         EncodeSettings(resolution=720).validate()
@@ -114,3 +139,5 @@ def test_invalid_settings_are_rejected():
         EncodeSettings(fit="squish").validate()
     with pytest.raises(EncodeError):
         EncodeSettings(fps=0).validate()
+    with pytest.raises(EncodeError):
+        EncodeSettings(orientation="sideways").validate()

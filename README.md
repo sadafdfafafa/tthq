@@ -92,10 +92,11 @@ tthq upload clip.mp4 --cookies cookies.txt --dry-run --headful
 
 | Flag | Default | Notes |
 | --- | --- | --- |
-| `--resolution` | `1080` | `1080`/`1440`/`2160` vertical. 1080x1920 is TikTok's canvas; the taller options exist to A/B whether TikTok's own downscale looks better on your footage. |
+| `--resolution` | `1080` | Short edge: `1080`/`1440`/`2160`. 1080x1920 is TikTok's canvas; the larger options exist to A/B whether TikTok's own downscale looks better on your footage. |
 | `--quality` | `max` | `safe` ≈10, `high` ≈15, `max` ≈20 Mbps at 1080x1920/30fps, scaled by pixels and frame rate. |
 | `--fps` | match source | Capped at 60. Prefer 30 for detail, 60 for fast motion. |
-| `--fit` | `pad` | `pad` letterboxes, `crop` fills 9:16, `stretch` distorts. |
+| `--orientation` | `vertical` | `vertical` is 9:16; `landscape` transposes the canvas to 16:9 (1080 becomes 1920x1080). TikTok accepts landscape: it letterboxes in the feed and fills the screen when the viewer rotates. |
+| `--fit` | `pad` | `pad` letterboxes, `crop` fills the canvas, `stretch` distorts. |
 | `--denoise` | off | Light `hqdn3d`. Helps grainy or dark gameplay survive the transcode. |
 | `--two-pass` | off | Slower, marginally better bitrate distribution. |
 

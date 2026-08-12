@@ -7,7 +7,14 @@ import sys
 from pathlib import Path
 
 from .caption import build_caption
-from .encode import QUALITY_BITRATE_MBPS, RESOLUTIONS, EncodeSettings, describe, encode
+from .encode import (
+    ORIENTATIONS,
+    QUALITY_BITRATE_MBPS,
+    RESOLUTIONS,
+    EncodeSettings,
+    describe,
+    encode,
+)
 from .probe import probe, warnings_for
 from .uploader import VISIBILITY_LABELS, UploadError, upload
 
@@ -18,7 +25,13 @@ def _encode_arguments(parser: argparse.ArgumentParser) -> None:
         type=int,
         default=1080,
         choices=sorted(RESOLUTIONS),
-        help="vertical output resolution (default: 1080, i.e. 1080x1920)",
+        help="output short edge (default: 1080, i.e. 1080x1920 or 1920x1080)",
+    )
+    parser.add_argument(
+        "--orientation",
+        default="vertical",
+        choices=ORIENTATIONS,
+        help="vertical 9:16, or landscape 16:9 like a YouTube video (default: vertical)",
     )
     parser.add_argument(
         "--quality",
@@ -45,6 +58,7 @@ def _settings_from(args: argparse.Namespace) -> EncodeSettings:
         quality=args.quality,
         fps=args.fps,
         fit=args.fit,
+        orientation=args.orientation,
         denoise=args.denoise,
         two_pass=args.two_pass,
     )
@@ -121,7 +135,7 @@ def main(argv: list[str] | None = None) -> int:
         settings = _settings_from(args)
         output = args.output or args.video.with_name(f"{args.video.stem}-tthq.mp4")
         info = probe(args.video)
-        for note in warnings_for(info):
+        for note in warnings_for(info, settings.orientation):
             print(f"warning: {note}", file=sys.stderr)
         print(describe(info, settings))
         encoded_path = encode(args.video, output, settings)
@@ -138,7 +152,7 @@ def main(argv: list[str] | None = None) -> int:
         if not args.skip_encode:
             settings = _settings_from(args)
             info = probe(args.video)
-            for note in warnings_for(info):
+            for note in warnings_for(info, settings.orientation):
                 print(f"warning: {note}", file=sys.stderr)
             print(describe(info, settings))
             source = encode(

@@ -74,7 +74,7 @@ async function loadOptions() {
   data.resolutions.forEach((value) => {
     const option = document.createElement("option");
     option.value = value;
-    option.textContent = value === 1080 ? "1080x1920 (recommended)" : `${value}p vertical`;
+    option.textContent = value === 1080 ? "1080p (recommended)" : `${value}p`;
     $("resolution").appendChild(option);
   });
   data.qualities.forEach((value) => {
@@ -152,6 +152,7 @@ async function submit() {
   form.append("quality", $("quality").value);
   form.append("fps", $("fps").value);
   form.append("fit", $("fit").value);
+  form.append("orientation", $("orientation").value);
   form.append("denoise", $("denoise").checked);
   form.append("two_pass", $("two_pass").checked);
   form.append("skip_encode", $("skip_encode").checked);

@@ -15,7 +15,7 @@ from fastapi import FastAPI, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, StreamingResponse
 
 from .caption import CaptionError, build_caption
-from .encode import QUALITY_BITRATE_MBPS, RESOLUTIONS, EncodeSettings
+from .encode import ORIENTATIONS, QUALITY_BITRATE_MBPS, RESOLUTIONS, EncodeSettings
 from .jobs import JobRegistry
 from .probe import ProbeError, probe, warnings_for
 from .uploader import VISIBILITY_LABELS
@@ -46,6 +46,7 @@ def create_app(
         return {
             "resolutions": sorted(RESOLUTIONS),
             "qualities": sorted(QUALITY_BITRATE_MBPS, key=lambda tier: QUALITY_BITRATE_MBPS[tier]),
+            "orientations": list(ORIENTATIONS),
             "visibilities": list(VISIBILITY_LABELS),
             "cookies_file": str(app.state.cookies_file) if app.state.cookies_file else None,
             "cookies_present": bool(
@@ -62,6 +63,7 @@ def create_app(
         quality: Annotated[str, Form()] = "max",
         fps: Annotated[str, Form()] = "",
         fit: Annotated[str, Form()] = "pad",
+        orientation: Annotated[str, Form()] = "vertical",
         denoise: Annotated[bool, Form()] = False,
         two_pass: Annotated[bool, Form()] = False,
         skip_encode: Annotated[bool, Form()] = False,
@@ -79,6 +81,7 @@ def create_app(
             quality=quality,
             fps=int(fps) if fps.strip() else None,
             fit=fit,
+            orientation=orientation,
             denoise=denoise,
             two_pass=two_pass,
         )

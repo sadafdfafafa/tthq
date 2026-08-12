@@ -84,7 +84,7 @@ class JobRegistry:
             caption = build_caption(job.title, job.hashtags)
 
             info = probe(job.video)
-            for warning in warnings_for(info):
+            for warning in warnings_for(info, job.settings.orientation):
                 job.emit("warning", warning)
 
             source = job.video
