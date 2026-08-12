@@ -207,6 +207,12 @@
 
         <h2 style="margin-top: 20px">Upload</h2>
         <div class="check"><input id="upload_after_encode" type="checkbox" /><span>Upload to TikTok after encoding</span></div>
+        <label>Upload via
+          <select id="backend">
+            <option value="browser">browser session (cookies.json)</option>
+            <option value="api">Content Posting API (developer app)</option>
+          </select>
+        </label>
         <label>Who can see this post
           <select id="visibility"></select>
         </label>

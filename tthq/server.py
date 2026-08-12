@@ -14,6 +14,7 @@ from typing import Annotated, Any
 from fastapi import FastAPI, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, StreamingResponse
 
+from . import api
 from .caption import CaptionError, build_caption
 from .encode import ORIENTATIONS, QUALITY_BITRATE_MBPS, RESOLUTIONS, EncodeSettings
 from .jobs import JobRegistry
@@ -48,6 +49,8 @@ def create_app(
             "qualities": sorted(QUALITY_BITRATE_MBPS, key=lambda tier: QUALITY_BITRATE_MBPS[tier]),
             "orientations": list(ORIENTATIONS),
             "visibilities": list(VISIBILITY_LABELS),
+            "backends": ["browser", "api"],
+            "api_token_present": api.DEFAULT_TOKEN_PATH.is_file(),
             "cookies_file": str(app.state.cookies_file) if app.state.cookies_file else None,
             "cookies_present": bool(
                 app.state.cookies_file and Path(app.state.cookies_file).is_file()
@@ -69,6 +72,7 @@ def create_app(
         skip_encode: Annotated[bool, Form()] = False,
         upload_after_encode: Annotated[bool, Form()] = False,
         visibility: Annotated[str, Form()] = "",
+        backend: Annotated[str, Form()] = "browser",
         dry_run: Annotated[bool, Form()] = True,
     ) -> dict[str, Any]:
         try:
@@ -99,11 +103,19 @@ def create_app(
         if visibility and visibility not in VISIBILITY_LABELS:
             raise HTTPException(status_code=422, detail=f"Unknown visibility {visibility!r}.")
 
+        if backend not in ("browser", "api"):
+            raise HTTPException(status_code=422, detail=f"Unknown backend {backend!r}.")
+
         cookies = Path(app.state.cookies_file) if app.state.cookies_file else None
-        if upload_after_encode and cookies is None:
+        if upload_after_encode and backend == "browser" and cookies is None:
             raise HTTPException(
                 status_code=422,
                 detail="No cookie file configured. Restart with --cookies path/to/cookies.txt.",
+            )
+        if upload_after_encode and backend == "api" and not api.DEFAULT_TOKEN_PATH.is_file():
+            raise HTTPException(
+                status_code=422,
+                detail="No API token yet. Run 'tthq api-login' first.",
             )
 
         job = registry.new_job(
@@ -113,7 +125,8 @@ def create_app(
             hashtags=hashtags,
             dry_run=dry_run,
             visibility=visibility or None,
-            cookies_file=cookies if upload_after_encode else None,
+            backend=backend if upload_after_encode else "browser",
+            cookies_file=cookies if upload_after_encode and backend == "browser" else None,
             skip_encode=skip_encode,
         )
         registry.submit(job)

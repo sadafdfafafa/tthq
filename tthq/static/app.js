@@ -58,6 +58,22 @@ function setFile(file) {
   $("submit").disabled = false;
 }
 
+let apiTokenPresent = false;
+
+// The API backend posts the moment the file lands on TikTok's servers, so there
+// is no staged state a dry run could stop at.
+function syncBackend() {
+  const isApi = $("backend").value === "api";
+  $("dry_run").disabled = isApi;
+  if (isApi) $("dry_run").checked = false;
+  const banner = $("cookie-banner");
+  if (isApi && !apiTokenPresent) {
+    banner.classList.remove("hidden");
+    banner.textContent = "No API token yet. Run: tthq api-login --client-key ... --client-secret ...";
+  }
+  syncButton();
+}
+
 function syncButton() {
   const uploading = $("upload_after_encode").checked;
   const dry = $("dry_run").checked;
@@ -101,13 +117,15 @@ async function loadOptions() {
     $("visibility").appendChild(option);
   });
 
-  if (!data.cookies_present) {
+  apiTokenPresent = Boolean(data.api_token_present);
+  if (!data.cookies_present && !apiTokenPresent) {
     const banner = $("cookie-banner");
     banner.classList.remove("hidden");
     banner.textContent =
       "No cookie file configured, so uploading is disabled. Restart with: tthq serve --cookies path/to/cookies.txt";
     $("upload_after_encode").disabled = true;
   }
+  syncBackend();
   syncButton();
 }
 
@@ -159,6 +177,7 @@ async function submit() {
   form.append("upload_after_encode", $("upload_after_encode").checked);
   form.append("dry_run", $("dry_run").checked);
   form.append("visibility", $("visibility").value);
+  form.append("backend", $("backend").value);
 
   log("info", `Uploading ${selectedFile.name} to the local server...`);
   const response = await fetch("/api/jobs", { method: "POST", body: form });
@@ -192,6 +211,7 @@ $("hashtags").addEventListener("input", renderCaption);
 ["upload_after_encode", "dry_run", "skip_encode"].forEach((id) =>
   $(id).addEventListener("change", syncButton)
 );
+$("backend").addEventListener("change", syncBackend);
 $("submit").addEventListener("click", submit);
 
 renderCaption();

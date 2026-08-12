@@ -108,6 +108,32 @@ resolves to "Everyone", falling back to "Followers" on a private account, which 
 never offered "Everyone". `private` ("Only you") is the safe choice for testing —
 note that TikTok will not let a private video be scheduled.
 
+## API backend (Content Posting API)
+
+There are two upload paths. The default drives the TikTok Studio web form with your
+cookies. The other posts through TikTok's official Content Posting API — the same route
+Twitch's "share to TikTok" uses, where the file goes straight to TikTok's ingestion
+servers instead of through a browser form.
+
+Set the app up once at https://developers.tiktok.com/apps: add the **Content Posting
+API** product with Direct Post enabled, request the `video.publish` scope, and register
+`http://localhost:8420/api/tiktok/callback` as a redirect URI. Then:
+
+```bash
+tthq api-login --client-key KEY --client-secret SECRET   # opens TikTok's consent page
+tthq api-info                                            # privacy levels the account allows
+tthq api-upload clip.mp4 --title "my clip" --hashtags gaming --visibility private
+```
+
+The token is cached in `~/.cache/tthq/tiktok_token.json` (mode 600) and refreshed
+automatically; `TIKTOK_CLIENT_KEY` / `TIKTOK_CLIENT_SECRET` work in place of the flags.
+In the UI, pick "Content Posting API" under **Upload via**.
+
+Two limits are TikTok's, not this tool's: an **unaudited** developer app can only post
+to a private account, and there is no dry run — the post goes live the moment the file
+finishes transferring. `--inbox` sidesteps the audit restriction by sending the video to
+your TikTok inbox as a draft you finish in the app, at the cost of an app-side re-encode.
+
 ## Caveats
 
 - Browser automation depends on TikTok Studio's DOM. If selectors break, the error names
