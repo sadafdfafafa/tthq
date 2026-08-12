@@ -156,6 +156,9 @@ def main(argv: list[str] | None = None) -> int:
             return 1
 
         print(result.note or f"posted in {result.elapsed_seconds:.0f}s")
+        if result.high_quality is not None:
+            state = "on" if result.high_quality else "off"
+            print(f"  TikTok's high-quality uploads switch: {state}")
         for shot in result.screenshots:
             print(f"  screenshot: {shot}")
         return 0

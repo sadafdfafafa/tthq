@@ -15,7 +15,9 @@ control is how much quality is left after that pass:
 - **Don't waste the bitrate budget.** At 60fps the same budget is split over twice
   as many frames; grain and camera shake burn bits that detail needs.
 - **Use the web upload path.** The desktop uploader skips the mobile app's own
-  pre-upload compression pass. This tool drives that path.
+  pre-upload compression pass. This tool drives that path, and TikTok Studio's
+  "High-quality uploads" switch is forced on there (it renders checked and
+  disabled) — the uploader reads it back and reports its state after each run.
 
 What this cannot do: recover detail your capture never had, or stop TikTok from
 serving a low-bitrate rendition on a weak connection or with Data Saver on. Check a
@@ -101,6 +103,10 @@ tthq upload clip.mp4 --cookies cookies.txt --dry-run --headful
 
 - Browser automation depends on TikTok Studio's DOM. If selectors break, the error names
   the ones it tried and saves a screenshot next to the job artifacts.
+- TikTok injects modals and tooltips mid-flow ("Turn on automatic content checks?",
+  feature announcements) whose overlays swallow clicks. They are dismissed
+  automatically, and because they are triggered by upload progress, every click is
+  retried behind a fresh dismissal pass rather than assuming a clear page.
 - Automated posting is against TikTok's terms of service in spirit if not always in
   letter; keep volume human-shaped and expect occasional captchas or verification prompts,
   which `--headful` lets you solve by hand.

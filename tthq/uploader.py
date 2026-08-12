@@ -29,6 +29,24 @@ CAPTION_SELECTORS = (
     "div[contenteditable='true']",
 )
 
+# TikTok interrupts the upload flow with modals ("Turn on automatic content
+# checks?", promos, tips) whose overlay swallows clicks on the form beneath.
+MODAL_OVERLAY_SELECTOR = ".TUXModal-overlay"
+MODAL_DISMISS_SELECTORS = (
+    ".common-modal-close",
+    "[role=dialog] button:has-text('Cancel')",
+    "[role=dialog] button:has-text('Not now')",
+    "[role=dialog] button:has-text('Got it')",
+    "[role=dialog] button:has-text('Skip')",
+)
+# Feature-announcement tooltips are not modals and have no overlay, but they do
+# sit on top of the form.
+TOOLTIP_DISMISS_SELECTOR = "button:has-text('Got it')"
+
+# TikTok forces HD on for Web Studio uploads and renders the switch disabled, so
+# this is read for confirmation rather than toggled.
+HQ_SWITCH_SELECTOR = ".headline-wrapper:has-text('High-quality uploads') [role=switch]"
+
 POST_BUTTON_SELECTORS = (
     "button[data-e2e='post_video_button']",
     "button:has-text('Post')",
@@ -50,6 +68,7 @@ class UploadResult:
     elapsed_seconds: float
     screenshots: list[Path] = field(default_factory=list)
     note: str = ""
+    high_quality: bool | None = None
 
 
 def _import_playwright():  # pragma: no cover - thin import shim
@@ -83,14 +102,94 @@ def _first_visible(page, selectors: tuple[str, ...], timeout_ms: int):
     )
 
 
-def _type_caption(page, caption_box, caption: str) -> None:
+def _high_quality_enabled(page) -> bool | None:
+    """Whether TikTok's "High-quality uploads" switch is on. None if not found."""
+    switch = page.locator(HQ_SWITCH_SELECTOR).first
+    try:
+        return switch.is_checked() if switch.count() else None
+    except Exception:
+        return None
+
+
+def _is_visible(locator) -> bool:
+    try:
+        return bool(locator.count()) and locator.is_visible()
+    except Exception:  # the node can detach while React re-renders
+        return False
+
+
+def _dismiss_modals(page, attempts: int = 5) -> list[str]:
+    """Close modals and tooltips covering the form. Returns what was dismissed."""
+    dismissed: list[str] = []
+    for _ in range(attempts):
+        overlay = page.locator(MODAL_OVERLAY_SELECTOR).first
+        tooltip = page.locator(TOOLTIP_DISMISS_SELECTOR).first
+
+        if not _is_visible(overlay):
+            if not _is_visible(tooltip):
+                return dismissed
+            try:
+                tooltip.click(timeout=5000)
+                dismissed.append("tooltip")
+            except Exception:
+                return dismissed
+            page.wait_for_timeout(500)
+            continue
+
+        try:
+            label = page.locator("[role=dialog]").first.inner_text().splitlines()[0]
+        except Exception:
+            label = "unknown modal"
+
+        for selector in MODAL_DISMISS_SELECTORS:
+            target = page.locator(selector).first
+            if not _is_visible(target):
+                continue
+            try:
+                target.click(timeout=5000)
+                break
+            except Exception:
+                continue
+        else:
+            page.keyboard.press("Escape")
+
+        page.wait_for_timeout(1000)
+        dismissed.append(label)
+    return dismissed
+
+
+def _click_past_modals(page, locator, timeout_seconds: int) -> None:
+    """Click an element, clearing modals that appear on top of it as we go.
+
+    Dismissing once up front is not enough: the modals are triggered by upload
+    progress, so a new one can appear between the dismissal and the click.
+    """
+    deadline = time.monotonic() + timeout_seconds
+    last_error: Exception | None = None
+    while time.monotonic() < deadline:
+        _dismiss_modals(page)
+        try:
+            locator.click(timeout=5000)
+            return
+        except Exception as exc:
+            last_error = exc
+            page.wait_for_timeout(500)
+    raise UploadError(
+        f"Could not click the element within {timeout_seconds}s; a modal kept "
+        f"intercepting the click. Last error: {last_error}"
+    )
+
+
+def _type_caption(page, caption_box, caption: str, timeout_seconds: int) -> None:
     """Type into TikTok's Draft.js caption editor.
 
     fill() does not work (the editor ignores direct value assignment), and typing a
     hashtag opens a suggestion popup that hijacks the next space or Enter. So each
     word is typed separately and the popup is dismissed after every hashtag.
+
+    The editor is pre-filled with the file name, so it is cleared first.
     """
-    caption_box.click()
+    _click_past_modals(page, caption_box, timeout_seconds)
     page.keyboard.press("Control+A")
     page.keyboard.press("Delete")
 
@@ -150,12 +249,14 @@ def upload(
                     "expired or incomplete. Re-export cookies.txt from a signed-in tab."
                 )
 
+            _dismiss_modals(page)
+
             page.wait_for_selector(FILE_INPUT_SELECTOR, state="attached", timeout=timeout_ms)
             page.locator(FILE_INPUT_SELECTOR).first.set_input_files(str(video))
 
             caption_box = _first_visible(page, CAPTION_SELECTORS, timeout_ms)
             if caption:
-                _type_caption(page, caption_box, caption)
+                _type_caption(page, caption_box, caption, timeout_seconds)
 
             # Wait for the client-side upload to finish before enabling Post.
             post_button = _first_visible(page, POST_BUTTON_SELECTORS, timeout_ms)
@@ -170,6 +271,8 @@ def upload(
                     f"video upload or processing did not complete."
                 )
 
+            high_quality = _high_quality_enabled(page)
+
             shot = artifacts / f"before-post-{int(time.time())}.png"
             page.screenshot(path=str(shot), full_page=True)
             screenshots.append(shot)
@@ -182,9 +285,10 @@ def upload(
                     elapsed_seconds=time.monotonic() - started,
                     screenshots=screenshots,
                     note="dry run: video staged and caption filled, Post not clicked",
+                    high_quality=high_quality,
                 )
 
-            post_button.click()
+            _click_past_modals(page, post_button, timeout_seconds)
             # The success state is a redirect away from the upload form or a toast.
             try:
                 page.wait_for_url(lambda url: "upload" not in url, timeout=120_000)
@@ -201,8 +305,9 @@ def upload(
                 video=video,
                 elapsed_seconds=time.monotonic() - started,
                 screenshots=screenshots,
+                high_quality=high_quality,
             )
-        except UploadError as exc:
+        except Exception as exc:
             failure = artifacts / f"failure-{int(time.time())}.png"
             try:
                 page.screenshot(path=str(failure), full_page=True)
@@ -210,7 +315,8 @@ def upload(
             except Exception:
                 pass
             # Re-raise carrying the diagnostics, which the caller surfaces to the user.
-            raise UploadError(str(exc), screenshots) from exc
+            message = str(exc) if isinstance(exc, UploadError) else f"{type(exc).__name__}: {exc}"
+            raise UploadError(message, screenshots) from exc
         finally:
             context.close()
             browser.close()

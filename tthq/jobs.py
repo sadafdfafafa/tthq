@@ -118,6 +118,12 @@ class JobRegistry:
                 artifacts_dir=self.work_dir / "artifacts",
             )
             job.screenshots = result.screenshots
+            if result.high_quality is not None:
+                job.emit(
+                    "info",
+                    "TikTok's high-quality uploads switch is "
+                    + ("on" if result.high_quality else "off"),
+                )
             job.status = "done"
             job.emit(
                 "done",
