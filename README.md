@@ -137,8 +137,9 @@ canonical handler names, `und` language.
 
 The premise is that the ingest transcoder derives its delivery bitrate partly from the
 declared frame rate. That is **unverified**, and the output is deliberately inconsistent:
-ffmpeg reports `wrong sample count` and ignores the padding, and a player that trusts the
-sample table over `stts` may misbehave. Treat it as an A/B experiment — upload the same
+ffmpeg logs a decode error per dummy sample (`wrong sample count`, or `Invalid data found
+when processing input` on older builds) while still decoding every real frame, and a
+player that trusts the sample table over `stts` may misbehave. Treat it as an A/B experiment — upload the same
 clip twice, spoofed and plain, and compare the published gears.
 
 ## Visibility

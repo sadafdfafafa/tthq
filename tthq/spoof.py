@@ -16,9 +16,10 @@ The remux that precedes the patch also normalises the container the way a stock
 phone export looks: metadata and `udta` stripped, `isom` brand, 90 kHz video
 timescale, canonical handler names, `und` language.
 
-Note the output is deliberately inconsistent: ffmpeg reports "wrong sample
-count" and ignores the padding. Players that trust the sample table over `stts`
-may misbehave.
+Note the output is deliberately inconsistent: ffmpeg logs a decode error per dummy
+sample ("wrong sample count" or "Invalid data found when processing input",
+depending on the build) while still decoding every real frame. Players that trust
+the sample table over `stts` may misbehave.
 """
 
 from __future__ import annotations
