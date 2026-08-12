@@ -1,0 +1,7 @@
+.venv/
+__pycache__/
+*.pyc
+cookies.txt
+artifacts/
+*-tthq.mp4
+*-optimized.mp4

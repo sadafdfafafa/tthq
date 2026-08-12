@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "tthq"
+version = "0.1.0"
+description = "Encode and upload clips to TikTok with minimal quality loss"
+requires-python = ">=3.10"
+dependencies = [
+    "fastapi>=0.110",
+    "uvicorn>=0.27",
+    "python-multipart>=0.0.9",
+    "playwright>=1.40",
+]
+
+[project.optional-dependencies]
+dev = ["ruff>=0.4", "mypy>=1.8", "pytest>=8.0"]
+
+[project.scripts]
+tthq = "tthq.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["tthq*"]
+
+[tool.setuptools.package-data]
+tthq = ["static/*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.mypy]
+python_version = "3.10"
+warn_unused_ignores = true
+disallow_untyped_defs = false
+ignore_missing_imports = true

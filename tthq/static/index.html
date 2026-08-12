@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>tthq &middot; TikTok high-quality uploader</title>
+    <style>
+      :root {
+        --bg: #0d0d12;
+        --panel: #16161f;
+        --border: #262633;
+        --text: #e8e8f0;
+        --muted: #8b8b9e;
+        --accent: #25f4ee;
+        --accent2: #fe2c55;
+        --warn: #f5a623;
+        --ok: #37d67a;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      }
+      header {
+        padding: 20px 24px;
+        border-bottom: 1px solid var(--border);
+        display: flex;
+        align-items: baseline;
+        gap: 12px;
+      }
+      h1 { font-size: 18px; margin: 0; letter-spacing: -0.01em; }
+      header span { color: var(--muted); font-size: 13px; }
+      main {
+        max-width: 1080px;
+        margin: 0 auto;
+        padding: 24px;
+        display: grid;
+        grid-template-columns: 1.1fr 1fr;
+        gap: 20px;
+      }
+      @media (max-width: 900px) { main { grid-template-columns: 1fr; } }
+      section {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 18px;
+      }
+      h2 {
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--muted);
+        margin: 0 0 14px;
+      }
+      label { display: block; margin-bottom: 14px; }
+      label > span { display: block; margin-bottom: 5px; color: var(--muted); font-size: 12px; }
+      input[type="text"], input[type="number"], textarea, select {
+        width: 100%;
+        background: #0f0f16;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        color: var(--text);
+        padding: 9px 11px;
+        font: inherit;
+      }
+      textarea { resize: vertical; min-height: 72px; }
+      input:focus, textarea:focus, select:focus {
+        outline: none;
+        border-color: var(--accent);
+      }
+      .row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+      .check { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+      .check input { accent-color: var(--accent); }
+      .check span { color: var(--text); font-size: 13px; }
+      #drop {
+        border: 1.5px dashed var(--border);
+        border-radius: 10px;
+        padding: 28px 16px;
+        text-align: center;
+        color: var(--muted);
+        cursor: pointer;
+        transition: border-color 0.15s, background 0.15s;
+      }
+      #drop.over { border-color: var(--accent); background: rgba(37, 244, 238, 0.06); }
+      #drop strong { color: var(--text); display: block; margin-bottom: 4px; }
+      button {
+        width: 100%;
+        background: var(--accent2);
+        color: #fff;
+        border: 0;
+        border-radius: 8px;
+        padding: 12px;
+        font: 600 14px/1 inherit;
+        cursor: pointer;
+      }
+      button:disabled { opacity: 0.45; cursor: not-allowed; }
+      #caption-preview {
+        background: #0f0f16;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 10px 12px;
+        min-height: 44px;
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
+      .tag { color: var(--accent); }
+      #count { color: var(--muted); font-size: 12px; float: right; }
+      #log {
+        font: 12px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace;
+        background: #0b0b11;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 12px;
+        height: 300px;
+        overflow-y: auto;
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
+      #log div { margin-bottom: 4px; }
+      .k-warning { color: var(--warn); }
+      .k-error { color: var(--accent2); }
+      .k-done { color: var(--ok); }
+      .k-stage, .k-encoded { color: var(--accent); }
+      .k-info { color: var(--muted); }
+      .banner {
+        border-radius: 8px;
+        padding: 10px 12px;
+        margin-bottom: 14px;
+        font-size: 13px;
+        border: 1px solid var(--warn);
+        color: var(--warn);
+        background: rgba(245, 166, 35, 0.08);
+      }
+      .hidden { display: none; }
+      a { color: var(--accent); }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>tthq</h1>
+      <span>encode once, locally, at the highest bitrate TikTok will accept</span>
+    </header>
+    <main>
+      <section>
+        <h2>Clip</h2>
+        <div id="cookie-banner" class="banner hidden"></div>
+        <div id="drop">
+          <strong>Drop a video here</strong>
+          or click to choose a file
+        </div>
+        <input id="file" type="file" accept="video/*" class="hidden" />
+        <div id="file-info" class="k-info" style="margin: 10px 0 16px"></div>
+
+        <label>
+          <span>Title / caption text</span>
+          <textarea id="title" placeholder="1v5 clutch on Ascent..."></textarea>
+        </label>
+        <label>
+          <span>Hashtags (comma or space separated, # optional)</span>
+          <input id="hashtags" type="text" placeholder="valorant, gaming, clutch" />
+        </label>
+        <label>
+          <span>Caption preview <em id="count"></em></span>
+          <div id="caption-preview"></div>
+        </label>
+      </section>
+
+      <section>
+        <h2>Encode</h2>
+        <div class="row">
+          <label>
+            <span>Resolution</span>
+            <select id="resolution"></select>
+          </label>
+          <label>
+            <span>Quality</span>
+            <select id="quality"></select>
+          </label>
+        </div>
+        <div class="row">
+          <label>
+            <span>FPS (blank = match source)</span>
+            <input id="fps" type="number" min="24" max="120" placeholder="auto" />
+          </label>
+          <label>
+            <span>Fit to 9:16</span>
+            <select id="fit">
+              <option value="pad">pad (letterbox)</option>
+              <option value="crop">crop (fill)</option>
+              <option value="stretch">stretch</option>
+            </select>
+          </label>
+        </div>
+        <div class="check"><input id="denoise" type="checkbox" /><span>Denoise (helps grainy gameplay survive TikTok's transcode)</span></div>
+        <div class="check"><input id="two_pass" type="checkbox" /><span>Two-pass encode (slower, slightly better bitrate distribution)</span></div>
+        <div class="check"><input id="skip_encode" type="checkbox" /><span>Skip encode, upload the file as-is</span></div>
+
+        <h2 style="margin-top: 20px">Upload</h2>
+        <div class="check"><input id="upload_after_encode" type="checkbox" /><span>Upload to TikTok after encoding</span></div>
+        <div class="check"><input id="dry_run" type="checkbox" checked /><span>Dry run (stage the post and fill the caption, but do not click Post)</span></div>
+        <button id="submit" disabled>Encode</button>
+      </section>
+
+      <section style="grid-column: 1 / -1">
+        <h2>Log</h2>
+        <div id="log"></div>
+        <a id="download" class="hidden" download>Download encoded file</a>
+      </section>
+    </main>
+    <script src="/app.js"></script>
+  </body>
+</html>
