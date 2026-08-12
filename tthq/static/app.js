@@ -89,7 +89,7 @@ async function loadOptions() {
     const banner = $("cookie-banner");
     banner.classList.remove("hidden");
     banner.textContent =
-      "No cookies.txt configured, so uploading is disabled. Restart with: tthq serve --cookies path/to/cookies.txt";
+      "No cookie file configured, so uploading is disabled. Restart with: tthq serve --cookies path/to/cookies.txt";
     $("upload_after_encode").disabled = true;
   }
   syncButton();

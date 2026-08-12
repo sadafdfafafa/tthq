@@ -94,7 +94,7 @@ def create_app(
         if upload_after_encode and cookies is None:
             raise HTTPException(
                 status_code=422,
-                detail="No cookies file configured. Restart with --cookies path/to/cookies.txt.",
+                detail="No cookie file configured. Restart with --cookies path/to/cookies.txt.",
             )
 
         job = registry.new_job(

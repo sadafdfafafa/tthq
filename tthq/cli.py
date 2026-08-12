@@ -54,7 +54,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="tthq",
         description="Encode clips for TikTok at the highest quality it will accept, "
-        "and optionally upload them with an exported cookies.txt.",
+        "and optionally upload them with an exported cookie file.",
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
 
@@ -68,7 +68,9 @@ def build_parser() -> argparse.ArgumentParser:
 
     upload_parser = subparsers.add_parser("upload", help="encode (optional) and upload a clip")
     upload_parser.add_argument("video", type=Path)
-    upload_parser.add_argument("--cookies", type=Path, required=True, help="Netscape cookies.txt")
+    upload_parser.add_argument(
+        "--cookies", type=Path, required=True, help="cookies.txt or cookies.json export"
+    )
     upload_parser.add_argument("--title", default="", help="caption text")
     upload_parser.add_argument("--hashtags", default="", help="comma or space separated hashtags")
     upload_parser.add_argument("--skip-encode", action="store_true", help="upload the file as-is")
@@ -84,7 +86,9 @@ def build_parser() -> argparse.ArgumentParser:
     serve_parser = subparsers.add_parser("serve", help="run the local web UI")
     serve_parser.add_argument("--host", default="127.0.0.1")
     serve_parser.add_argument("--port", type=int, default=8420)
-    serve_parser.add_argument("--cookies", type=Path, default=None, help="Netscape cookies.txt")
+    serve_parser.add_argument(
+        "--cookies", type=Path, default=None, help="cookies.txt or cookies.json export"
+    )
     serve_parser.add_argument("--work-dir", type=Path, default=None)
 
     return parser
