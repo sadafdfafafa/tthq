@@ -99,6 +99,14 @@ tthq upload clip.mp4 --cookies cookies.txt --dry-run --headful
 | `--denoise` | off | Light `hqdn3d`. Helps grainy or dark gameplay survive the transcode. |
 | `--two-pass` | off | Slower, marginally better bitrate distribution. |
 
+## Visibility
+
+`--visibility public|friends|private` (or the dropdown in the UI) drives TikTok's
+"Who can see this post" menu; omit it to keep whatever TikTok defaults to. `public`
+resolves to "Everyone", falling back to "Followers" on a private account, which is
+never offered "Everyone". `private` ("Only you") is the safe choice for testing —
+note that TikTok will not let a private video be scheduled.
+
 ## Caveats
 
 - Browser automation depends on TikTok Studio's DOM. If selectors break, the error names

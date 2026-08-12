@@ -18,6 +18,7 @@ from .caption import CaptionError, build_caption
 from .encode import QUALITY_BITRATE_MBPS, RESOLUTIONS, EncodeSettings
 from .jobs import JobRegistry
 from .probe import ProbeError, probe, warnings_for
+from .uploader import VISIBILITY_LABELS
 
 STATIC_DIR = Path(__file__).parent / "static"
 DEFAULT_WORK_DIR = Path.home() / ".cache" / "tthq"
@@ -45,6 +46,7 @@ def create_app(
         return {
             "resolutions": sorted(RESOLUTIONS),
             "qualities": sorted(QUALITY_BITRATE_MBPS, key=lambda tier: QUALITY_BITRATE_MBPS[tier]),
+            "visibilities": list(VISIBILITY_LABELS),
             "cookies_file": str(app.state.cookies_file) if app.state.cookies_file else None,
             "cookies_present": bool(
                 app.state.cookies_file and Path(app.state.cookies_file).is_file()
@@ -64,6 +66,7 @@ def create_app(
         two_pass: Annotated[bool, Form()] = False,
         skip_encode: Annotated[bool, Form()] = False,
         upload_after_encode: Annotated[bool, Form()] = False,
+        visibility: Annotated[str, Form()] = "",
         dry_run: Annotated[bool, Form()] = True,
     ) -> dict[str, Any]:
         try:
@@ -90,6 +93,9 @@ def create_app(
         with stored.open("wb") as handle:
             shutil.copyfileobj(video.file, handle)
 
+        if visibility and visibility not in VISIBILITY_LABELS:
+            raise HTTPException(status_code=422, detail=f"Unknown visibility {visibility!r}.")
+
         cookies = Path(app.state.cookies_file) if app.state.cookies_file else None
         if upload_after_encode and cookies is None:
             raise HTTPException(
@@ -103,6 +109,7 @@ def create_app(
             title=title,
             hashtags=hashtags,
             dry_run=dry_run,
+            visibility=visibility or None,
             cookies_file=cookies if upload_after_encode else None,
             skip_encode=skip_encode,
         )

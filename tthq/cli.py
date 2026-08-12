@@ -9,7 +9,7 @@ from pathlib import Path
 from .caption import build_caption
 from .encode import QUALITY_BITRATE_MBPS, RESOLUTIONS, EncodeSettings, describe, encode
 from .probe import probe, warnings_for
-from .uploader import UploadError, upload
+from .uploader import VISIBILITY_LABELS, UploadError, upload
 
 
 def _encode_arguments(parser: argparse.ArgumentParser) -> None:
@@ -74,6 +74,12 @@ def build_parser() -> argparse.ArgumentParser:
     upload_parser.add_argument("--title", default="", help="caption text")
     upload_parser.add_argument("--hashtags", default="", help="comma or space separated hashtags")
     upload_parser.add_argument("--skip-encode", action="store_true", help="upload the file as-is")
+    upload_parser.add_argument(
+        "--visibility",
+        choices=sorted(VISIBILITY_LABELS),
+        default=None,
+        help="who can see the post (default: leave TikTok's own default)",
+    )
     upload_parser.add_argument(
         "--dry-run",
         action="store_true",
@@ -145,6 +151,7 @@ def main(argv: list[str] | None = None) -> int:
                 source,
                 args.cookies,
                 caption=caption,
+                visibility=args.visibility,
                 headless=not args.headful,
                 dry_run=args.dry_run,
                 timeout_seconds=args.timeout,
@@ -156,6 +163,8 @@ def main(argv: list[str] | None = None) -> int:
             return 1
 
         print(result.note or f"posted in {result.elapsed_seconds:.0f}s")
+        if result.visibility:
+            print(f"  visibility: {result.visibility}")
         if result.high_quality is not None:
             state = "on" if result.high_quality else "off"
             print(f"  TikTok's high-quality uploads switch: {state}")

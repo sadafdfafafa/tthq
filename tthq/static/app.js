@@ -85,6 +85,22 @@ async function loadOptions() {
     $("quality").appendChild(option);
   });
 
+  const visibilityLabels = {
+    public: "Everyone (public)",
+    friends: "Friends only",
+    private: "Only me (private)",
+  };
+  const keep = document.createElement("option");
+  keep.value = "";
+  keep.textContent = "Leave TikTok's default";
+  $("visibility").appendChild(keep);
+  data.visibilities.forEach((value) => {
+    const option = document.createElement("option");
+    option.value = value;
+    option.textContent = visibilityLabels[value] || value;
+    $("visibility").appendChild(option);
+  });
+
   if (!data.cookies_present) {
     const banner = $("cookie-banner");
     banner.classList.remove("hidden");
@@ -141,6 +157,7 @@ async function submit() {
   form.append("skip_encode", $("skip_encode").checked);
   form.append("upload_after_encode", $("upload_after_encode").checked);
   form.append("dry_run", $("dry_run").checked);
+  form.append("visibility", $("visibility").value);
 
   log("info", `Uploading ${selectedFile.name} to the local server...`);
   const response = await fetch("/api/jobs", { method: "POST", body: form });

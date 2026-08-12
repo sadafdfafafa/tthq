@@ -27,6 +27,7 @@ class Job:
     title: str = ""
     hashtags: str = ""
     dry_run: bool = False
+    visibility: str | None = None
     cookies_file: Path | None = None
     skip_encode: bool = False
     status: JobStatus = "queued"
@@ -114,10 +115,13 @@ class JobRegistry:
                 source,
                 job.cookies_file,
                 caption=caption,
+                visibility=job.visibility,
                 dry_run=job.dry_run,
                 artifacts_dir=self.work_dir / "artifacts",
             )
             job.screenshots = result.screenshots
+            if result.visibility:
+                job.emit("info", f"Visibility set to {result.visibility!r}")
             if result.high_quality is not None:
                 job.emit(
                     "info",

@@ -47,6 +47,15 @@ TOOLTIP_DISMISS_SELECTOR = "button:has-text('Got it')"
 # this is read for confirmation rather than toggled.
 HQ_SWITCH_SELECTOR = ".headline-wrapper:has-text('High-quality uploads') [role=switch]"
 
+VISIBILITY_TRIGGER_SELECTOR = "[data-e2e='video_visibility_container'] [role=combobox]"
+# Menu labels per visibility choice, in preference order: a private account is
+# offered "Followers" where a public one is offered "Everyone".
+VISIBILITY_LABELS: dict[str, tuple[str, ...]] = {
+    "public": ("Everyone", "Followers"),
+    "friends": ("Friends",),
+    "private": ("Only you",),
+}
+
 POST_BUTTON_SELECTORS = (
     "button[data-e2e='post_video_button']",
     "button:has-text('Post')",
@@ -69,6 +78,7 @@ class UploadResult:
     screenshots: list[Path] = field(default_factory=list)
     note: str = ""
     high_quality: bool | None = None
+    visibility: str = ""
 
 
 def _import_playwright():  # pragma: no cover - thin import shim
@@ -99,6 +109,34 @@ def _first_visible(page, selectors: tuple[str, ...], timeout_ms: int):
         f"None of these selectors appeared within {timeout_ms / 1000:.0f}s: "
         f"{list(selectors)}. TikTok Studio's layout has probably changed."
         + (f" Last error: {last_error}" if last_error else "")
+    )
+
+
+def _set_visibility(page, visibility: str, timeout_seconds: int) -> str:
+    """Pick an option in TikTok's "Who can see this post" menu. Returns its label."""
+    labels = VISIBILITY_LABELS[visibility]
+    trigger = page.locator(VISIBILITY_TRIGGER_SELECTOR).first
+    if not trigger.count():
+        raise UploadError(
+            "The 'Who can see this post' control was not found, so visibility could "
+            "not be set. TikTok Studio's layout has probably changed."
+        )
+
+    _click_past_modals(page, trigger, timeout_seconds)
+    options = page.locator("[role=option]")
+    options.first.wait_for(state="visible", timeout=timeout_seconds * 1000)
+
+    for label in labels:
+        option = options.filter(has_text=label).first
+        if _is_visible(option):
+            option.click()
+            page.wait_for_timeout(500)
+            return label
+
+    available = [options.nth(i).inner_text().splitlines()[0] for i in range(options.count())]
+    raise UploadError(
+        f"TikTok does not offer {visibility!r} for this account; it lists {available}. "
+        f"A private account has no 'Everyone' option, for example."
     )
 
 
@@ -210,6 +248,7 @@ def upload(
     cookies_file: Path,
     *,
     caption: str = "",
+    visibility: str | None = None,
     headless: bool = True,
     dry_run: bool = False,
     timeout_seconds: int = 300,
@@ -217,6 +256,10 @@ def upload(
 ) -> UploadResult:
     if not video.is_file():
         raise UploadError(f"No such video: {video}")
+    if visibility is not None and visibility not in VISIBILITY_LABELS:
+        raise UploadError(
+            f"Unknown visibility {visibility!r}; choose from {list(VISIBILITY_LABELS)}."
+        )
 
     state = storage_state(cookies_file)
     artifacts = artifacts_dir or Path("artifacts")
@@ -271,6 +314,9 @@ def upload(
                     f"video upload or processing did not complete."
                 )
 
+            chosen_visibility = (
+                _set_visibility(page, visibility, timeout_seconds) if visibility else ""
+            )
             high_quality = _high_quality_enabled(page)
 
             shot = artifacts / f"before-post-{int(time.time())}.png"
@@ -286,6 +332,7 @@ def upload(
                     screenshots=screenshots,
                     note="dry run: video staged and caption filled, Post not clicked",
                     high_quality=high_quality,
+                    visibility=chosen_visibility,
                 )
 
             _click_past_modals(page, post_button, timeout_seconds)
@@ -306,6 +353,7 @@ def upload(
                 elapsed_seconds=time.monotonic() - started,
                 screenshots=screenshots,
                 high_quality=high_quality,
+                visibility=chosen_visibility,
             )
         except Exception as exc:
             failure = artifacts / f"failure-{int(time.time())}.png"
