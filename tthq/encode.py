@@ -37,6 +37,10 @@ QUALITY_BITRATE_MBPS: dict[str, float] = {
 
 FIT_MODES = ("pad", "crop", "stretch")
 
+# TikTok accepts landscape too (letterboxed in feed, full-screen when the viewer
+# rotates), so the canvas can be transposed.
+ORIENTATIONS = ("vertical", "landscape")
+
 
 @dataclass(frozen=True)
 class EncodeSettings:
@@ -44,6 +48,7 @@ class EncodeSettings:
     quality: str = "max"
     fps: int | None = None
     fit: str = "pad"
+    orientation: str = "vertical"
     denoise: bool = False
     x264_preset: str = "slow"
     audio_bitrate_k: int = 320
@@ -58,10 +63,20 @@ class EncodeSettings:
             raise EncodeError(
                 f"Unknown quality {self.quality!r}; choose from {sorted(QUALITY_BITRATE_MBPS)}."
             )
+        if self.orientation not in ORIENTATIONS:
+            raise EncodeError(
+                f"Unknown orientation {self.orientation!r}; choose from {list(ORIENTATIONS)}."
+            )
         if self.fit not in FIT_MODES:
             raise EncodeError(f"Unknown fit mode {self.fit!r}; choose from {list(FIT_MODES)}.")
         if self.fps is not None and not 1 <= self.fps <= 120:
             raise EncodeError(f"Unreasonable fps {self.fps}.")
+
+
+def output_size(settings: EncodeSettings) -> tuple[int, int]:
+    """Output canvas, transposed for landscape (1080 -> 1920x1080, not 1080x1920)."""
+    width, height = RESOLUTIONS[settings.resolution]
+    return (height, width) if settings.orientation == "landscape" else (width, height)
 
 
 def target_fps(info: VideoInfo, settings: EncodeSettings) -> int:
@@ -77,7 +92,7 @@ def target_fps(info: VideoInfo, settings: EncodeSettings) -> int:
 
 
 def bitrate_kbps(settings: EncodeSettings, fps: int) -> int:
-    width, height = RESOLUTIONS[settings.resolution]
+    width, height = output_size(settings)
     base_pixels = 1080 * 1920
     pixel_factor = (width * height) / base_pixels
     # Bitrate need grows sublinearly with frame rate, not linearly.
@@ -87,7 +102,7 @@ def bitrate_kbps(settings: EncodeSettings, fps: int) -> int:
 
 
 def build_filters(settings: EncodeSettings) -> str:
-    width, height = RESOLUTIONS[settings.resolution]
+    width, height = output_size(settings)
     filters: list[str] = []
 
     if settings.denoise:
@@ -233,12 +248,12 @@ def encode(source: Path, destination: Path, settings: EncodeSettings) -> Path:
 def describe(info: VideoInfo, settings: EncodeSettings) -> str:
     settings.validate()
     fps = target_fps(info, settings)
-    width, height = RESOLUTIONS[settings.resolution]
+    width, height = output_size(settings)
     kbps = bitrate_kbps(settings, fps)
     return (
         f"{info.width}x{info.height}@{info.fps:.0f} {info.video_codec} -> "
         f"{width}x{height}@{fps} h264 high, {kbps / 1000:.1f} Mbps video, "
-        f"{settings.audio_bitrate_k}k aac, fit={settings.fit}"
+        f"{settings.audio_bitrate_k}k aac, {settings.orientation}, fit={settings.fit}"
         f"{', denoise' if settings.denoise else ''}"
         f"{', 2-pass' if settings.two_pass else ''}"
     )

@@ -118,18 +118,26 @@ def probe(path: Path) -> VideoInfo:
     )
 
 
-def warnings_for(info: VideoInfo) -> list[str]:
-    """Source problems that TikTok's transcoder will make worse."""
-    notes: list[str] = []
+def warnings_for(info: VideoInfo, orientation: str = "vertical") -> list[str]:
+    """Source problems that TikTok's transcoder will make worse.
 
-    if not info.is_vertical:
+    `orientation` is the intended output shape, so a landscape source is only
+    flagged when it is about to be squeezed into a vertical canvas.
+    """
+    notes: list[str] = []
+    target_aspect = 16 / 9 if orientation == "landscape" else 9 / 16
+
+    if info.is_vertical == (orientation == "landscape"):
         notes.append(
-            f"Source is landscape ({info.width}x{info.height}). TikTok will pillarbox or "
-            f"crop it; frame the clip vertically for the best use of the bitrate budget."
+            f"Source is {'portrait' if info.is_vertical else 'landscape'} "
+            f"({info.width}x{info.height}) but the output is {orientation}. It will be "
+            f"padded or cropped; reframe it to avoid spending bitrate on black bars."
         )
-    elif abs(info.aspect - 9 / 16) > 0.02:
+    elif abs(info.aspect - target_aspect) > 0.02:
         notes.append(
-            f"Aspect {info.width}:{info.height} is not 9:16; padding or cropping will be applied."
+            f"Aspect {info.width}:{info.height} is not "
+            f"{'16:9' if orientation == 'landscape' else '9:16'}; padding or cropping "
+            f"will be applied."
         )
 
     if info.height < 1080 and info.width < 1080:

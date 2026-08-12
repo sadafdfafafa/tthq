@@ -2,6 +2,7 @@
 __pycache__/
 *.pyc
 cookies.txt
+cookies.json
 artifacts/
 *-tthq.mp4
 *-optimized.mp4

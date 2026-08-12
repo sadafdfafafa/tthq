@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>tthq - authorization callback</title>
+    <style>
+      body {
+        font-family: system-ui, sans-serif;
+        max-width: 42rem;
+        margin: 4rem auto;
+        padding: 0 1.25rem;
+        line-height: 1.6;
+        color: #111;
+      }
+      code {
+        display: block;
+        background: #f2f2f2;
+        padding: 0.75rem;
+        border-radius: 4px;
+        word-break: break-all;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Authorization received</h1>
+    <p>
+      Copy the full URL of this page out of the address bar and paste it back into
+      <code>tthq api-login --manual</code>. The authorization code is single use and
+      expires quickly.
+    </p>
+    <code id="url"></code>
+    <p id="warning"></p>
+    <script>
+      document.getElementById("url").textContent = window.location.href;
+      const params = new URLSearchParams(window.location.search);
+      if (!params.get("code")) {
+        document.getElementById("warning").textContent =
+          "No authorization code in this URL: " + (params.get("error") || "unknown error");
+      }
+    </script>
+  </body>
+</html>

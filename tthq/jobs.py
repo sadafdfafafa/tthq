@@ -10,6 +10,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal
 
+from . import api
 from .caption import build_caption
 from .encode import EncodeSettings, describe, encode
 from .probe import probe, warnings_for
@@ -27,7 +28,10 @@ class Job:
     title: str = ""
     hashtags: str = ""
     dry_run: bool = False
+    visibility: str | None = None
+    backend: str = "browser"
     cookies_file: Path | None = None
+    token_file: Path | None = None
     skip_encode: bool = False
     status: JobStatus = "queued"
     events: queue.Queue = field(default_factory=queue.Queue)
@@ -83,7 +87,7 @@ class JobRegistry:
             caption = build_caption(job.title, job.hashtags)
 
             info = probe(job.video)
-            for warning in warnings_for(info):
+            for warning in warnings_for(info, job.settings.orientation):
                 job.emit("warning", warning)
 
             source = job.video
@@ -103,6 +107,10 @@ class JobRegistry:
                     output=str(source),
                 )
 
+            if job.backend == "api":
+                self._upload_via_api(job, source, caption)
+                return
+
             if job.cookies_file is None:
                 job.status = "done"
                 job.emit("done", "Encode complete. No cookies file given, so nothing was uploaded.")
@@ -114,10 +122,19 @@ class JobRegistry:
                 source,
                 job.cookies_file,
                 caption=caption,
+                visibility=job.visibility,
                 dry_run=job.dry_run,
                 artifacts_dir=self.work_dir / "artifacts",
             )
             job.screenshots = result.screenshots
+            if result.visibility:
+                job.emit("info", f"Visibility set to {result.visibility!r}")
+            if result.high_quality is not None:
+                job.emit(
+                    "info",
+                    "TikTok's high-quality uploads switch is "
+                    + ("on" if result.high_quality else "off"),
+                )
             job.status = "done"
             job.emit(
                 "done",
@@ -125,6 +142,10 @@ class JobRegistry:
                 posted=result.posted,
                 screenshots=[str(p) for p in result.screenshots],
             )
+        except api.ApiError as exc:
+            job.status = "failed"
+            job.error = str(exc)
+            job.emit("error", str(exc))
         except UploadError as exc:
             job.status = "failed"
             job.error = str(exc)
@@ -136,3 +157,32 @@ class JobRegistry:
             job.emit("error", job.error)
         finally:
             job.finish()
+
+    def _upload_via_api(self, job: Job, source: Path, caption: str) -> None:
+        """Post through the Content Posting API instead of the Studio web form."""
+        if job.dry_run:
+            job.status = "done"
+            job.emit(
+                "done",
+                "dry run: the API backend posts as soon as the file is sent, so nothing "
+                "was uploaded.",
+            )
+            return
+
+        job.status = "uploading"
+        token = api.load_token(token_path=job.token_file or api.DEFAULT_TOKEN_PATH)
+        job.emit("stage", f"Posting through TikTok's API with caption: {caption!r}")
+        result = api.upload(
+            source,
+            token,
+            caption=caption,
+            visibility=job.visibility or "private",
+        )
+        if result.privacy_level:
+            job.emit("info", f"Privacy level {result.privacy_level}")
+        job.status = "done"
+        job.emit(
+            "done",
+            f"{result.status} in {result.elapsed_seconds:.0f}s (publish id {result.publish_id}).",
+            posted=True,
+        )

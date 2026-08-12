@@ -193,12 +193,29 @@
             </select>
           </label>
         </div>
+        <div class="row">
+          <label>Orientation
+            <select id="orientation">
+              <option value="vertical">vertical 9:16 (feed native)</option>
+              <option value="landscape">landscape 16:9 (YouTube-style)</option>
+            </select>
+          </label>
+        </div>
         <div class="check"><input id="denoise" type="checkbox" /><span>Denoise (helps grainy gameplay survive TikTok's transcode)</span></div>
         <div class="check"><input id="two_pass" type="checkbox" /><span>Two-pass encode (slower, slightly better bitrate distribution)</span></div>
         <div class="check"><input id="skip_encode" type="checkbox" /><span>Skip encode, upload the file as-is</span></div>
 
         <h2 style="margin-top: 20px">Upload</h2>
         <div class="check"><input id="upload_after_encode" type="checkbox" /><span>Upload to TikTok after encoding</span></div>
+        <label>Upload via
+          <select id="backend">
+            <option value="browser">browser session (cookies.json)</option>
+            <option value="api">Content Posting API (developer app)</option>
+          </select>
+        </label>
+        <label>Who can see this post
+          <select id="visibility"></select>
+        </label>
         <div class="check"><input id="dry_run" type="checkbox" checked /><span>Dry run (stage the post and fill the caption, but do not click Post)</span></div>
         <button id="submit" disabled>Encode</button>
       </section>

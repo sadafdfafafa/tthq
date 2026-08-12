@@ -58,6 +58,22 @@ function setFile(file) {
   $("submit").disabled = false;
 }
 
+let apiTokenPresent = false;
+
+// The API backend posts the moment the file lands on TikTok's servers, so there
+// is no staged state a dry run could stop at.
+function syncBackend() {
+  const isApi = $("backend").value === "api";
+  $("dry_run").disabled = isApi;
+  if (isApi) $("dry_run").checked = false;
+  const banner = $("cookie-banner");
+  if (isApi && !apiTokenPresent) {
+    banner.classList.remove("hidden");
+    banner.textContent = "No API token yet. Run: tthq api-login --client-key ... --client-secret ...";
+  }
+  syncButton();
+}
+
 function syncButton() {
   const uploading = $("upload_after_encode").checked;
   const dry = $("dry_run").checked;
@@ -74,7 +90,7 @@ async function loadOptions() {
   data.resolutions.forEach((value) => {
     const option = document.createElement("option");
     option.value = value;
-    option.textContent = value === 1080 ? "1080x1920 (recommended)" : `${value}p vertical`;
+    option.textContent = value === 1080 ? "1080p (recommended)" : `${value}p`;
     $("resolution").appendChild(option);
   });
   data.qualities.forEach((value) => {
@@ -85,13 +101,31 @@ async function loadOptions() {
     $("quality").appendChild(option);
   });
 
-  if (!data.cookies_present) {
+  const visibilityLabels = {
+    public: "Everyone (public)",
+    friends: "Friends only",
+    private: "Only me (private)",
+  };
+  const keep = document.createElement("option");
+  keep.value = "";
+  keep.textContent = "Leave TikTok's default";
+  $("visibility").appendChild(keep);
+  data.visibilities.forEach((value) => {
+    const option = document.createElement("option");
+    option.value = value;
+    option.textContent = visibilityLabels[value] || value;
+    $("visibility").appendChild(option);
+  });
+
+  apiTokenPresent = Boolean(data.api_token_present);
+  if (!data.cookies_present && !apiTokenPresent) {
     const banner = $("cookie-banner");
     banner.classList.remove("hidden");
     banner.textContent =
-      "No cookies.txt configured, so uploading is disabled. Restart with: tthq serve --cookies path/to/cookies.txt";
+      "No cookie file configured, so uploading is disabled. Restart with: tthq serve --cookies path/to/cookies.txt";
     $("upload_after_encode").disabled = true;
   }
+  syncBackend();
   syncButton();
 }
 
@@ -136,11 +170,14 @@ async function submit() {
   form.append("quality", $("quality").value);
   form.append("fps", $("fps").value);
   form.append("fit", $("fit").value);
+  form.append("orientation", $("orientation").value);
   form.append("denoise", $("denoise").checked);
   form.append("two_pass", $("two_pass").checked);
   form.append("skip_encode", $("skip_encode").checked);
   form.append("upload_after_encode", $("upload_after_encode").checked);
   form.append("dry_run", $("dry_run").checked);
+  form.append("visibility", $("visibility").value);
+  form.append("backend", $("backend").value);
 
   log("info", `Uploading ${selectedFile.name} to the local server...`);
   const response = await fetch("/api/jobs", { method: "POST", body: form });
@@ -174,6 +211,7 @@ $("hashtags").addEventListener("input", renderCaption);
 ["upload_after_encode", "dry_run", "skip_encode"].forEach((id) =>
   $(id).addEventListener("change", syncButton)
 );
+$("backend").addEventListener("change", syncBackend);
 $("submit").addEventListener("click", submit);
 
 renderCaption();
