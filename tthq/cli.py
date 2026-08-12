@@ -51,7 +51,14 @@ def _encode_arguments(parser: argparse.ArgumentParser) -> None:
         help="how to reach 9:16 (default: pad)",
     )
     parser.add_argument("--denoise", action="store_true", help="light denoise before encoding")
+    parser.add_argument("--sharpen", action="store_true", help="mild pre-sharpen (unsharp)")
     parser.add_argument("--two-pass", action="store_true", help="two-pass x264 encode")
+    parser.add_argument(
+        "--spoof-fps",
+        action="store_true",
+        help="experiment: declare ~6.7x the real frame count in the MP4 sample table "
+        "(no extra frames; effect on TikTok's delivery bitrate is unverified)",
+    )
 
 
 def _settings_from(args: argparse.Namespace) -> EncodeSettings:
@@ -62,7 +69,9 @@ def _settings_from(args: argparse.Namespace) -> EncodeSettings:
         fit=args.fit,
         orientation=args.orientation,
         denoise=args.denoise,
+        sharpen=args.sharpen,
         two_pass=args.two_pass,
+        spoof_fps=args.spoof_fps,
     )
 
 

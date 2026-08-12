@@ -61,6 +61,8 @@ restores the session and signs its own requests.
 ```bash
 tthq serve --cookies cookies.txt
 # http://127.0.0.1:8420
+
+tthq serve --port 8282   # encode-only: no cookies needed, download the result
 ```
 
 Drag in a clip, set the title and hashtags (live caption preview with a 2200-character
@@ -98,7 +100,46 @@ tthq upload clip.mp4 --cookies cookies.txt --dry-run --headful
 | `--orientation` | `vertical` | `vertical` is 9:16; `landscape` transposes the canvas to 16:9 (1080 becomes 1920x1080). TikTok accepts landscape: it letterboxes in the feed and fills the screen when the viewer rotates. |
 | `--fit` | `pad` | `pad` letterboxes, `crop` fills the canvas, `stretch` distorts. |
 | `--denoise` | off | Light `hqdn3d`. Helps grainy or dark gameplay survive the transcode. |
+| `--sharpen` | off | Mild `unsharp`. Counters the softness of TikTok's delivery encode; overdone it rings. |
 | `--two-pass` | off | Slower, marginally better bitrate distribution. |
+| `--spoof-fps` | off | Frame-count spoof, see below. Experiment, not a fix. |
+
+## What TikTok's delivery pipeline actually does
+
+Measured on one post, from its own rendition ladder (`bitrateInfo` in the page's
+hydration data):
+
+| state | published rendition |
+| --- | --- |
+| "Only me" | `original_1080_0`, 1920x1080, **20 Mbps** — the untranscoded upload |
+| switched to "Followers", 0 views | `lower_540_0`, 1024x576, **1.42 Mbps**, within ~2 minutes |
+| switched back to "Only me" | still `lower_540_0` — the original is gone |
+
+So the transcode fires as soon as anyone but you can see the post — not when it goes
+public, and not as views arrive — and it is one-way. Popular public posts do get extra
+gears (`adapt_lower_720_1`, `adapt_lowest_1080_1`), but even at millions of views they
+top out around 2 Mbps, and every gear above 540p is HEVC, so a viewer whose client
+cannot decode HEVC is pinned to the 540p H.264 gear no matter what you upload.
+
+Nothing in the upload path changes this: the ingest stores a 30 Mbps master intact.
+What is left is making the source cheap to re-encode — `--fps 30`, no upscale, no
+letterbox, `--denoise` for grain, `--sharpen` to offset the softening.
+
+## Frame-count spoof (`--spoof-fps`)
+
+Circulated among clip editors as the "120fps method". After encoding, the MP4's video
+sample table is padded so it *declares* ~6.7x as many samples as exist (a 60fps clip
+claims ~400fps): the extra `stsz`/`stsc`/`stco` entries all point at one 8-byte dummy
+sample appended to `mdat`, while `stts` — the real timing — is untouched. Nothing is
+interpolated and no picture data changes. The same pass normalises the container the way
+a stock phone export looks: metadata and `udta` stripped, `isom` brand, 90 kHz timescale,
+canonical handler names, `und` language.
+
+The premise is that the ingest transcoder derives its delivery bitrate partly from the
+declared frame rate. That is **unverified**, and the output is deliberately inconsistent:
+ffmpeg reports `wrong sample count` and ignores the padding, and a player that trusts the
+sample table over `stts` may misbehave. Treat it as an A/B experiment — upload the same
+clip twice, spoofed and plain, and compare the published gears.
 
 ## Visibility
 

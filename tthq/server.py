@@ -68,7 +68,9 @@ def create_app(
         fit: Annotated[str, Form()] = "pad",
         orientation: Annotated[str, Form()] = "vertical",
         denoise: Annotated[bool, Form()] = False,
+        sharpen: Annotated[bool, Form()] = False,
         two_pass: Annotated[bool, Form()] = False,
+        spoof_fps: Annotated[bool, Form()] = False,
         skip_encode: Annotated[bool, Form()] = False,
         upload_after_encode: Annotated[bool, Form()] = False,
         visibility: Annotated[str, Form()] = "",
@@ -87,7 +89,9 @@ def create_app(
             fit=fit,
             orientation=orientation,
             denoise=denoise,
+            sharpen=sharpen,
             two_pass=two_pass,
+            spoof_fps=spoof_fps,
         )
         try:
             settings.validate()

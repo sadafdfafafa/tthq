@@ -172,7 +172,9 @@ async function submit() {
   form.append("fit", $("fit").value);
   form.append("orientation", $("orientation").value);
   form.append("denoise", $("denoise").checked);
+  form.append("sharpen", $("sharpen").checked);
   form.append("two_pass", $("two_pass").checked);
+  form.append("spoof_fps", $("spoof_fps").checked);
   form.append("skip_encode", $("skip_encode").checked);
   form.append("upload_after_encode", $("upload_after_encode").checked);
   form.append("dry_run", $("dry_run").checked);

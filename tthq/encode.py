@@ -13,6 +13,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from .probe import VideoInfo, probe, require_binary
+from .spoof import spoof_sample_count
 
 
 class EncodeError(RuntimeError):
@@ -53,6 +54,8 @@ class EncodeSettings:
     x264_preset: str = "slow"
     audio_bitrate_k: int = 320
     two_pass: bool = False
+    sharpen: bool = False
+    spoof_fps: bool = False
 
     def validate(self) -> None:
         if self.resolution not in RESOLUTIONS:
@@ -109,6 +112,12 @@ def build_filters(settings: EncodeSettings) -> str:
         # Light spatial/temporal denoise: grain and sensor noise are what make
         # gameplay clips fall apart after a second lossy pass.
         filters.append("hqdn3d=1.5:1.5:6:6")
+
+    if settings.sharpen:
+        # Pre-sharpen to counter the softness of TikTok's ~1-2 Mbps delivery
+        # encode. Overdone it will ring, which that encode then has to spend
+        # bits on, so keep it mild.
+        filters.append("unsharp=5:5:0.8:3:3:0.4")
 
     if settings.fit == "stretch":
         filters.append(f"scale={width}:{height}:flags=lanczos")
@@ -242,6 +251,11 @@ def encode(source: Path, destination: Path, settings: EncodeSettings) -> Path:
     else:
         _run(build_command(source, destination, info, settings))
 
+    if settings.spoof_fps:
+        spoofed = destination.with_name(f"{destination.stem}.spoof{destination.suffix}")
+        spoof_sample_count(destination, spoofed)
+        spoofed.replace(destination)
+
     return destination
 
 
@@ -255,5 +269,7 @@ def describe(info: VideoInfo, settings: EncodeSettings) -> str:
         f"{width}x{height}@{fps} h264 high, {kbps / 1000:.1f} Mbps video, "
         f"{settings.audio_bitrate_k}k aac, {settings.orientation}, fit={settings.fit}"
         f"{', denoise' if settings.denoise else ''}"
+        f"{', sharpen' if settings.sharpen else ''}"
         f"{', 2-pass' if settings.two_pass else ''}"
+        f"{', fps-spoof' if settings.spoof_fps else ''}"
     )
