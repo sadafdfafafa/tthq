@@ -5,3 +5,4 @@ cookies.txt
 artifacts/
 *-tthq.mp4
 *-optimized.mp4
+*.egg-info/
