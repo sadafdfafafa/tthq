@@ -189,6 +189,23 @@ class _CallbackHandler(BaseHTTPRequestHandler):
         pass
 
 
+def authorize_url(client_key: str, redirect_uri: str, state: str) -> str:
+    params = {
+        "client_key": client_key,
+        "response_type": "code",
+        "scope": SCOPES,
+        "redirect_uri": redirect_uri,
+        "state": state,
+    }
+    return f"{AUTHORIZE_URL}?{urllib.parse.urlencode(params)}"
+
+
+def parse_redirect(url: str) -> dict[str, str]:
+    """Pull the query parameters out of a redirect URL pasted from the address bar."""
+    query = urllib.parse.parse_qs(urllib.parse.urlparse(url.strip()).query)
+    return {key: value[0] for key, value in query.items()}
+
+
 def authorize(
     client_key: str,
     client_secret: str,
@@ -197,35 +214,42 @@ def authorize(
     token_path: Path = DEFAULT_TOKEN_PATH,
     open_browser: bool = True,
     timeout_seconds: int = 300,
+    manual: bool = False,
 ) -> Token:
-    """Run the OAuth code flow against a throwaway local HTTP server."""
+    """Run the OAuth code flow, catching the redirect locally.
+
+    TikTok only accepts https redirect URIs for some app configurations, in which
+    case nothing can listen on them locally; `manual=True` instead asks for the
+    redirected URL to be pasted back from the browser's address bar.
+    """
     parsed = urllib.parse.urlparse(redirect_uri)
-    if parsed.hostname not in ("localhost", "127.0.0.1"):
+    if not manual and parsed.hostname not in ("localhost", "127.0.0.1"):
         raise ApiError(
-            "redirect_uri must point at localhost so tthq can catch the code, "
-            f"got {redirect_uri!r}."
+            f"redirect_uri {redirect_uri!r} is not local, so tthq cannot catch the code. "
+            "Use --manual and paste the redirected URL instead."
         )
 
     state = secrets.token_urlsafe(16)
-    params = {
-        "client_key": client_key,
-        "response_type": "code",
-        "scope": SCOPES,
-        "redirect_uri": redirect_uri,
-        "state": state,
-    }
-    url = f"{AUTHORIZE_URL}?{urllib.parse.urlencode(params)}"
+    url = authorize_url(client_key, redirect_uri, state)
     print("Open this URL and approve the app:\n" + url)
     if open_browser:
         webbrowser.open(url)
 
-    _CallbackHandler.result = {}
-    server = HTTPServer((parsed.hostname, parsed.port or 80), _CallbackHandler)
-    server.timeout = timeout_seconds
-    server.handle_request()
-    server.server_close()
+    if manual:
+        print(
+            "\nAfter approving, the browser lands on your redirect URI (the page itself "
+            "may fail to load -- that is fine)."
+        )
+        pasted = input("Paste the full URL from the address bar here: ")
+        result = parse_redirect(pasted)
+    else:
+        _CallbackHandler.result = {}
+        server = HTTPServer((parsed.hostname or "localhost", parsed.port or 80), _CallbackHandler)
+        server.timeout = timeout_seconds
+        server.handle_request()
+        server.server_close()
+        result = _CallbackHandler.result
 
-    result = _CallbackHandler.result
     if not result:
         raise ApiError(f"No OAuth redirect arrived within {timeout_seconds}s.")
     if result.get("state") != state:

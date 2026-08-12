@@ -54,9 +54,20 @@ def test_load_token_without_file_explains_login(tmp_path) -> None:
         api.load_token(token_path=tmp_path / "missing.json")
 
 
-def test_authorize_rejects_non_local_redirect() -> None:
-    with pytest.raises(api.ApiError, match="localhost"):
+def test_authorize_rejects_non_local_redirect_without_manual() -> None:
+    with pytest.raises(api.ApiError, match="--manual"):
         api.authorize("key", "secret", redirect_uri="https://example.com/cb")
+
+
+def test_parse_redirect_extracts_code_and_state() -> None:
+    parsed = api.parse_redirect("https://example.com/cb?code=abc%2F1&state=xyz&scopes=a,b ")
+    assert parsed["code"] == "abc/1"
+    assert parsed["state"] == "xyz"
+
+
+def test_authorize_url_carries_scopes_and_state() -> None:
+    url = api.authorize_url("key", "https://example.com/cb", "st")
+    assert "client_key=key" in url and "state=st" in url and "video.publish" in url
 
 
 def test_error_explanation_mentions_audit_workaround() -> None:

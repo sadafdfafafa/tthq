@@ -119,6 +119,11 @@ def build_parser() -> argparse.ArgumentParser:
     login_parser.add_argument(
         "--no-browser", action="store_true", help="only print the URL, do not open a browser"
     )
+    login_parser.add_argument(
+        "--manual",
+        action="store_true",
+        help="paste the redirected URL by hand, for apps whose redirect URI is not localhost",
+    )
 
     api_parser = subparsers.add_parser(
         "api-upload", help="upload through TikTok's official Content Posting API"
@@ -250,6 +255,7 @@ def main(argv: list[str] | None = None) -> int:
                 redirect_uri=args.redirect_uri,
                 token_path=args.token_file,
                 open_browser=not args.no_browser,
+                manual=args.manual,
             )
         except api.ApiError as exc:
             print(f"login failed: {exc}", file=sys.stderr)

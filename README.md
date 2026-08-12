@@ -125,6 +125,11 @@ tthq api-info                                            # privacy levels the ac
 tthq api-upload clip.mp4 --title "my clip" --hashtags gaming --visibility private
 ```
 
+TikTok rejects non-https redirect URIs for some app configurations. When the app's
+redirect URI cannot be a localhost address, use `tthq api-login --manual --redirect-uri
+https://your.site/cb`: it prints the consent URL and asks you to paste the URL the
+browser ends up on (that page failing to load is fine — only its `?code=` matters).
+
 The token is cached in `~/.cache/tthq/tiktok_token.json` (mode 600) and refreshed
 automatically; `TIKTOK_CLIENT_KEY` / `TIKTOK_CLIENT_SECRET` work in place of the flags.
 In the UI, pick "Content Posting API" under **Upload via**.
