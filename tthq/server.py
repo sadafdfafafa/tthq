@@ -71,6 +71,7 @@ def create_app(
         sharpen: Annotated[bool, Form()] = False,
         two_pass: Annotated[bool, Form()] = False,
         spoof_fps: Annotated[bool, Form()] = False,
+        spoof_camera: Annotated[bool, Form()] = False,
         skip_encode: Annotated[bool, Form()] = False,
         upload_after_encode: Annotated[bool, Form()] = False,
         visibility: Annotated[str, Form()] = "",
@@ -92,6 +93,7 @@ def create_app(
             sharpen=sharpen,
             two_pass=two_pass,
             spoof_fps=spoof_fps,
+            spoof_camera=spoof_camera,
         )
         try:
             settings.validate()

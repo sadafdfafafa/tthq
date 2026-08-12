@@ -1,6 +1,14 @@
-"""Inflate an MP4's declared video sample count without touching the pictures.
+"""Rewrite what an MP4 *claims* about itself, without touching the pictures.
 
-Clip editors circulate this as the "120fps method": the file's sample table is
+Two independent claims can be forged here, both aimed at whatever the ingest
+transcoder infers from the container:
+
+* the declared video sample count ("120fps method", see below);
+* the capture fingerprint: brand, timescale, handler names, vendor and Apple
+  QuickTime keys, so the file reads as a phone camera original rather than an
+  editor export.
+
+Clip editors circulate the first one as the "120fps method": the file's sample table is
 padded with dummy entries so a parser that derives a frame rate from
 `stsz.sample_count / duration` sees several times the real rate, while `stts`
 (the real timing) is left alone. Nothing is interpolated and no frame is added
@@ -12,9 +20,16 @@ partly from the declared frame rate. That is unverified: measured delivery gears
 for ordinary uploads are 540p/30fps at ~1-2 Mbps regardless of the source, so
 treat this as an experiment to A/B, not a fix.
 
-The remux that precedes the patch also normalises the container the way a stock
-phone export looks: metadata and `udta` stripped, `isom` brand, 90 kHz video
-timescale, canonical handler names, `und` language.
+The remux that precedes the patch also normalises the container: metadata and
+`udta` stripped, `isom` brand, 90 kHz video timescale, canonical handler names,
+`und` language.
+
+Camera mode replaces that normalisation with an iPhone-shaped one — `qt  ` brand,
+600 timescale, `Core Media Video`/`Core Media Audio` handlers,
+`com.apple.quicktime.make`/`.model`/`.software`/`.creationdate` keys, capture
+timestamps in `mvhd`/`tkhd`/`mdhd`, and no muxer fingerprint (no `encoder` tag,
+zeroed sample-entry vendor). The pictures are still whatever was encoded, so this
+only changes what the file says about its origin.
 
 Note the output is deliberately inconsistent: ffmpeg logs a decode error per dummy
 sample ("wrong sample count" or "Invalid data found when processing input",
@@ -27,6 +42,7 @@ from __future__ import annotations
 import struct
 import subprocess
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
 
 from .probe import require_binary
@@ -48,9 +64,27 @@ INFLATION_DENOMINATOR = 3
 # ISO 639-2/T "und", packed as three 5-bit values the way `mdhd` stores it.
 UNDETERMINED_LANGUAGE = 0x55C4
 
+# MP4 timestamps count from 1904-01-01, Unix time from 1970-01-01.
+MP4_EPOCH_OFFSET = 2_082_844_800
+
+# What camera mode claims the clip came out of.
+CAMERA_MAKE = "Apple"
+CAMERA_MODEL = "iPhone 15 Pro"
+CAMERA_SOFTWARE = "18.1"
+
 
 class SpoofError(RuntimeError):
     pass
+
+
+@dataclass(frozen=True)
+class SpoofOptions:
+    frame_count: bool = False
+    camera: bool = False
+
+    @property
+    def any(self) -> bool:
+        return self.frame_count or self.camera
 
 
 @dataclass
@@ -80,7 +114,7 @@ class Box:
         return box
 
 
-def _u32(data: bytes, offset: int) -> int:
+def _u32(data: bytes | bytearray, offset: int) -> int:
     return struct.unpack_from(">I", data, offset)[0]
 
 
@@ -203,6 +237,35 @@ def _patch_mdhd(data: bytes, mdhd: Box) -> bytes:
     return _box("mdhd", bytes(payload))
 
 
+def _patch_times(data: bytes, box: Box, captured_at: int) -> bytes:
+    """Give `mvhd`/`tkhd`/`mdhd` a real capture timestamp instead of zeroes."""
+    payload = bytearray(_payload(data, box))
+    if payload[0] == 1:
+        struct.pack_into(">QQ", payload, 4, captured_at, captured_at)
+    else:
+        struct.pack_into(">II", payload, 4, captured_at, captured_at)
+    return _box(box.type, bytes(payload))
+
+
+def _patch_stsd_vendor(data: bytes, stsd: Box) -> bytes:
+    """Zero the sample entries' vendor field, which otherwise reads `FFMP`."""
+    payload = bytearray(_payload(data, stsd))
+    offset = 8
+    for _ in range(_u32(payload, 4)):
+        if offset + 8 > len(payload):
+            break
+        size = _u32(payload, offset)
+        if size < 8 or offset + size > len(payload):
+            break
+        # VisualSampleEntry: 6 reserved, 2 data reference index, 2 pre_defined,
+        # 2 reserved, then QuickTime's 4-byte vendor.
+        vendor = offset + 8 + 12
+        if vendor + 4 <= offset + size:
+            struct.pack_into(">I", payload, vendor, 0)
+        offset += size
+    return _box("stsd", bytes(payload))
+
+
 def _patch_hdlr(data: bytes, hdlr: Box) -> bytes:
     payload = _payload(data, hdlr)
     names = {b"vide": b"VideoHandler\0", b"soun": b"SoundHandler\0"}
@@ -212,7 +275,7 @@ def _patch_hdlr(data: bytes, hdlr: Box) -> bytes:
     return _box("hdlr", payload[:24] + name)
 
 
-def _remux(source: Path, destination: Path) -> None:
+def _remux(source: Path, destination: Path, options: SpoofOptions, captured_at: int) -> None:
     """Normalise the container before patching, so only our edits stand out."""
     command = [
         require_binary("ffmpeg"),
@@ -230,29 +293,60 @@ def _remux(source: Path, destination: Path) -> None:
         "-1",
         "-map_chapters",
         "-1",
-        "-brand",
-        "isom",
-        "-movflags",
-        "+faststart",
-        "-video_track_timescale",
-        "90000",
-        "-metadata:s:v:0",
-        "handler_name=VideoHandler",
-        "-metadata:s:a:0",
-        "handler_name=SoundHandler",
-        str(destination),
     ]
+    if options.camera:
+        stamp = datetime.fromtimestamp(captured_at - MP4_EPOCH_OFFSET, tz=timezone.utc)
+        command += [
+            # The QuickTime muxer, plus bitexact so no `encoder` tag is written.
+            "-f",
+            "mov",
+            "-fflags",
+            "+bitexact",
+            "-movflags",
+            "use_metadata_tags+faststart",
+            "-video_track_timescale",
+            "600",
+            "-metadata",
+            f"com.apple.quicktime.make={CAMERA_MAKE}",
+            "-metadata",
+            f"com.apple.quicktime.model={CAMERA_MODEL}",
+            "-metadata",
+            f"com.apple.quicktime.software={CAMERA_SOFTWARE}",
+            "-metadata",
+            f"com.apple.quicktime.creationdate={stamp.strftime('%Y-%m-%dT%H:%M:%S+0000')}",
+            "-metadata:s:v:0",
+            "handler_name=Core Media Video",
+            "-metadata:s:a:0",
+            "handler_name=Core Media Audio",
+        ]
+    else:
+        command += [
+            "-brand",
+            "isom",
+            "-movflags",
+            "+faststart",
+            "-video_track_timescale",
+            "90000",
+            "-metadata:s:v:0",
+            "handler_name=VideoHandler",
+            "-metadata:s:a:0",
+            "handler_name=SoundHandler",
+        ]
+    command.append(str(destination))
     proc = subprocess.run(command, capture_output=True, text=True, check=False)
     if proc.returncode != 0:
         tail = "\n".join(proc.stderr.strip().splitlines()[-10:])
         raise SpoofError(f"remux failed:\n{tail}")
 
 
-def spoof_sample_count(source: Path, destination: Path) -> int:
+def spoof(source: Path, destination: Path, options: SpoofOptions) -> int:
     """Rewrite `source` into `destination`; returns the declared sample count."""
+    if not options.any:
+        raise SpoofError("nothing to spoof")
+    captured_at = int(source.stat().st_mtime) + MP4_EPOCH_OFFSET
     remuxed = destination.with_name(f"{destination.stem}.tthq-remux{destination.suffix}")
     try:
-        _remux(source, remuxed)
+        _remux(source, remuxed, options, captured_at)
         data = remuxed.read_bytes()
         top = parse_boxes(data, 0, len(data))
         moov = next((box for box in top if box.type == "moov"), None)
@@ -274,17 +368,27 @@ def spoof_sample_count(source: Path, destination: Path) -> int:
             raise SpoofError("video sample table is incomplete")
 
         real = _sample_count(data, stsz)
-        declared = real * INFLATION_NUMERATOR // INFLATION_DENOMINATOR
+        declared = (
+            real * INFLATION_NUMERATOR // INFLATION_DENOMINATOR if options.frame_count else real
+        )
         padding = max(0, declared - real)
         chunk_count = _u32(_payload(data, chunks), 4)
 
         def rebuild(box: Box, shift: int, fake_offset: int, in_video: bool) -> bytes | None:
             if box.type == "udta":
-                return None
+                # Camera mode keeps it: that is where the QuickTime keys live.
+                return _raw(data, box) if options.camera else None
+            if box.type in {"mvhd", "tkhd"} and options.camera:
+                return _patch_times(data, box, captured_at)
             if box.type == "mdhd":
+                if options.camera:
+                    return _patch_times(data, box, captured_at)
                 return _patch_mdhd(data, box)
             if box.type == "hdlr":
-                return _patch_hdlr(data, box)
+                # The remux already set the camera handler names.
+                return _raw(data, box) if options.camera else _patch_hdlr(data, box)
+            if in_video and box.type == "stsd" and options.camera:
+                return _patch_stsd_vendor(data, box)
             if in_video and box.type == "stsz":
                 return _patch_stsz(data, box, padding)
             if in_video and box.type == "stsc":

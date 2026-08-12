@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from .probe import VideoInfo, probe, require_binary
-from .spoof import spoof_sample_count
+from .spoof import SpoofOptions, spoof
 
 
 class EncodeError(RuntimeError):
@@ -56,6 +56,7 @@ class EncodeSettings:
     two_pass: bool = False
     sharpen: bool = False
     spoof_fps: bool = False
+    spoof_camera: bool = False
 
     def validate(self) -> None:
         if self.resolution not in RESOLUTIONS:
@@ -251,9 +252,10 @@ def encode(source: Path, destination: Path, settings: EncodeSettings) -> Path:
     else:
         _run(build_command(source, destination, info, settings))
 
-    if settings.spoof_fps:
+    options = SpoofOptions(frame_count=settings.spoof_fps, camera=settings.spoof_camera)
+    if options.any:
         spoofed = destination.with_name(f"{destination.stem}.spoof{destination.suffix}")
-        spoof_sample_count(destination, spoofed)
+        spoof(destination, spoofed, options)
         spoofed.replace(destination)
 
     return destination
@@ -272,4 +274,5 @@ def describe(info: VideoInfo, settings: EncodeSettings) -> str:
         f"{', sharpen' if settings.sharpen else ''}"
         f"{', 2-pass' if settings.two_pass else ''}"
         f"{', fps-spoof' if settings.spoof_fps else ''}"
+        f"{', camera-spoof' if settings.spoof_camera else ''}"
     )

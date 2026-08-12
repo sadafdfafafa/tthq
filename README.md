@@ -103,6 +103,7 @@ tthq upload clip.mp4 --cookies cookies.txt --dry-run --headful
 | `--sharpen` | off | Mild `unsharp`. Counters the softness of TikTok's delivery encode; overdone it rings. |
 | `--two-pass` | off | Slower, marginally better bitrate distribution. |
 | `--spoof-fps` | off | Frame-count spoof, see below. Experiment, not a fix. |
+| `--spoof-camera` | off | Camera-original spoof, see below. Experiment, not a fix. |
 
 ## What TikTok's delivery pipeline actually does
 
@@ -125,7 +126,14 @@ Nothing in the upload path changes this: the ingest stores a 30 Mbps master inta
 What is left is making the source cheap to re-encode — `--fps 30`, no upscale, no
 letterbox, `--denoise` for grain, `--sharpen` to offset the softening.
 
-## Frame-count spoof (`--spoof-fps`)
+## Container spoofs (`--spoof-fps`, `--spoof-camera`)
+
+Both rewrite what the MP4 *claims* about itself after encoding, and change no pixels.
+They combine, and both are off by default because neither is verified: the point is to
+A/B them (same clip, one variable, both flipped to "Followers", then compare the
+published gears).
+
+### Frame-count spoof (`--spoof-fps`)
 
 Circulated among clip editors as the "120fps method". After encoding, the MP4's video
 sample table is padded so it *declares* ~6.7x as many samples as exist (a 60fps clip
@@ -139,8 +147,17 @@ The premise is that the ingest transcoder derives its delivery bitrate partly fr
 declared frame rate. That is **unverified**, and the output is deliberately inconsistent:
 ffmpeg logs a decode error per dummy sample (`wrong sample count`, or `Invalid data found
 when processing input` on older builds) while still decoding every real frame, and a
-player that trusts the sample table over `stts` may misbehave. Treat it as an A/B experiment — upload the same
-clip twice, spoofed and plain, and compare the published gears.
+player that trusts the sample table over `stts` may misbehave.
+
+### Camera-original spoof (`--spoof-camera`)
+
+Makes the container read as an iPhone capture rather than an editor export: `qt  ` brand,
+600 timescale, `Core Media Video`/`Core Media Audio` handlers,
+`com.apple.quicktime.make`/`.model`/`.software`/`.creationdate`, capture timestamps in
+`mvhd`/`tkhd`/`mdhd`, and no muxer fingerprint at all (no `encoder` tag, sample-entry
+vendor zeroed instead of `FFMP`). Unlike the frame-count spoof this produces a perfectly
+valid file — the only lie is about provenance. The premise is that in-app camera
+originals get treated differently from re-uploaded/edited content.
 
 ## Visibility
 

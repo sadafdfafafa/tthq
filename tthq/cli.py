@@ -59,6 +59,12 @@ def _encode_arguments(parser: argparse.ArgumentParser) -> None:
         help="experiment: declare ~6.7x the real frame count in the MP4 sample table "
         "(no extra frames; effect on TikTok's delivery bitrate is unverified)",
     )
+    parser.add_argument(
+        "--spoof-camera",
+        action="store_true",
+        help="experiment: make the container look like an iPhone camera original "
+        "(brand, timescale, handlers, QuickTime keys; effect unverified)",
+    )
 
 
 def _settings_from(args: argparse.Namespace) -> EncodeSettings:
@@ -72,6 +78,7 @@ def _settings_from(args: argparse.Namespace) -> EncodeSettings:
         sharpen=args.sharpen,
         two_pass=args.two_pass,
         spoof_fps=args.spoof_fps,
+        spoof_camera=args.spoof_camera,
     )
 
 
