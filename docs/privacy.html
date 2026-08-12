@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>tthq - Privacy Policy</title>
+    <style>
+      body {
+        font-family: system-ui, sans-serif;
+        max-width: 42rem;
+        margin: 4rem auto;
+        padding: 0 1.25rem;
+        line-height: 1.6;
+        color: #111;
+      }
+      a { color: #0b57d0; }
+      code { background: #f2f2f2; padding: 0.1rem 0.3rem; border-radius: 3px; }
+    </style>
+  </head>
+  <body>
+    <h1>Privacy Policy</h1>
+    <p>Last updated: 12 August 2026</p>
+
+    <h2>1. No servers, no collection</h2>
+    <p>
+      tthq runs entirely on the user's own computer. It has no backend service, no
+      analytics, and no telemetry. The author receives no data from it. Nothing is
+      transmitted anywhere except directly to TikTok, on the user's instruction.
+    </p>
+
+    <h2>2. What is stored, and where</h2>
+    <ul>
+      <li>
+        <strong>Video files</strong> - read from, and written to, folders the user chooses
+        on their own machine.
+      </li>
+      <li>
+        <strong>TikTok access and refresh tokens</strong> - stored in
+        <code>~/.cache/tthq/tiktok_token.json</code> with owner-only permissions, used
+        only to call TikTok's API on the user's behalf.
+      </li>
+      <li>
+        <strong>Browser cookies</strong> (optional, browser upload mode only) - read from
+        a file the user exports themselves, used only to restore their TikTok session in a
+        local browser.
+      </li>
+      <li>
+        <strong>Screenshots</strong> of the upload page, saved locally so failed uploads
+        can be diagnosed.
+      </li>
+    </ul>
+    <p>All of this stays on the user's machine and can be deleted at any time.</p>
+
+    <h2>3. Data shared with TikTok</h2>
+    <p>
+      When the user starts an upload, the video file and the caption, hashtags and privacy
+      setting they entered are sent to TikTok. With TikTok's API, the software also reads
+      basic account information (<code>user.info.basic</code>) and the account's allowed
+      privacy options, in order to post correctly. TikTok's handling of that data is
+      governed by the
+      <a href="https://www.tiktok.com/legal/privacy-policy">TikTok Privacy Policy</a>.
+    </p>
+
+    <h2>4. Revoking access and deleting data</h2>
+    <p>
+      Access can be revoked at any time from TikTok's app or account settings. Deleting
+      <code>~/.cache/tthq/</code> and the cookie file removes every credential the
+      software stored. Since no data is held anywhere else, no deletion request to the
+      author is necessary.
+    </p>
+
+    <h2>5. Children</h2>
+    <p>The software is not directed at children under 13 and collects no data from anyone.</p>
+
+    <h2>6. Contact</h2>
+    <p>
+      Questions:
+      <a href="https://github.com/sadafdfafafa/tthq/issues">github.com/sadafdfafafa/tthq/issues</a>
+    </p>
+  </body>
+</html>
