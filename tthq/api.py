@@ -12,6 +12,7 @@ and chunked PUT bodies are easier to control byte-exactly this way.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import secrets
 import time
@@ -189,7 +190,14 @@ class _CallbackHandler(BaseHTTPRequestHandler):
         pass
 
 
-def authorize_url(client_key: str, redirect_uri: str, state: str) -> str:
+def code_challenge(verifier: str) -> str:
+    """TikTok's PKCE challenge is the hex - not base64url - SHA256 of the verifier."""
+    return hashlib.sha256(verifier.encode()).hexdigest()
+
+
+def authorize_url(
+    client_key: str, redirect_uri: str, state: str, *, verifier: str | None = None
+) -> str:
     params = {
         "client_key": client_key,
         "response_type": "code",
@@ -197,6 +205,9 @@ def authorize_url(client_key: str, redirect_uri: str, state: str) -> str:
         "redirect_uri": redirect_uri,
         "state": state,
     }
+    if verifier:
+        params["code_challenge"] = code_challenge(verifier)
+        params["code_challenge_method"] = "S256"
     return f"{AUTHORIZE_URL}?{urllib.parse.urlencode(params)}"
 
 
@@ -215,8 +226,13 @@ def authorize(
     open_browser: bool = True,
     timeout_seconds: int = 300,
     manual: bool = False,
+    desktop: bool = True,
 ) -> Token:
     """Run the OAuth code flow, catching the redirect locally.
+
+    `desktop=True` adds the PKCE verifier/challenge pair TikTok requires of apps
+    registered on the Desktop platform, which is also the only platform whose
+    redirect URI may be a localhost address.
 
     TikTok only accepts https redirect URIs for some app configurations, in which
     case nothing can listen on them locally; `manual=True` instead asks for the
@@ -230,7 +246,9 @@ def authorize(
         )
 
     state = secrets.token_urlsafe(16)
-    url = authorize_url(client_key, redirect_uri, state)
+    # 43-128 unreserved characters; token_urlsafe can emit '-' and '_', both allowed.
+    verifier = secrets.token_urlsafe(64) if desktop else None
+    url = authorize_url(client_key, redirect_uri, state, verifier=verifier)
     print("Open this URL and approve the app:\n" + url)
     if open_browser:
         webbrowser.open(url)
@@ -257,15 +275,16 @@ def authorize(
     if "code" not in result:
         raise ApiError(f"TikTok refused the authorization: {result}")
 
-    token = _token_request(
-        {
-            "client_key": client_key,
-            "client_secret": client_secret,
-            "code": urllib.parse.unquote(result["code"]),
-            "grant_type": "authorization_code",
-            "redirect_uri": redirect_uri,
-        }
-    )
+    body = {
+        "client_key": client_key,
+        "client_secret": client_secret,
+        "code": urllib.parse.unquote(result["code"]),
+        "grant_type": "authorization_code",
+        "redirect_uri": redirect_uri,
+    }
+    if verifier:
+        body["code_verifier"] = verifier
+    token = _token_request(body)
     token.save(token_path)
     return token
 

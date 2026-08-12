@@ -68,6 +68,17 @@ def test_parse_redirect_extracts_code_and_state() -> None:
 def test_authorize_url_carries_scopes_and_state() -> None:
     url = api.authorize_url("key", "https://example.com/cb", "st")
     assert "client_key=key" in url and "state=st" in url and "video.publish" in url
+    assert "code_challenge" not in url
+
+
+def test_authorize_url_adds_hex_pkce_challenge() -> None:
+    verifier = "v" * 43
+    url = api.authorize_url("key", "http://localhost:8420/cb", "st", verifier=verifier)
+    assert f"code_challenge={api.code_challenge(verifier)}" in url
+    assert "code_challenge_method=S256" in url
+    # Hex, not base64url: 64 characters, all hex digits.
+    digest = api.code_challenge(verifier)
+    assert len(digest) == 64 and int(digest, 16) >= 0
 
 
 def test_error_explanation_mentions_audit_workaround() -> None:

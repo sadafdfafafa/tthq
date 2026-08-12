@@ -117,7 +117,10 @@ servers instead of through a browser form.
 
 Set the app up once at https://developers.tiktok.com/apps: add the **Content Posting
 API** product with Direct Post enabled, request the `video.publish` scope, and register
-`http://localhost:8420/api/tiktok/callback` as a redirect URI. Then:
+`http://localhost:8420/api/tiktok/callback` as a redirect URI. Pick the **Desktop**
+platform — it is the only one whose redirect URI may be a localhost address, and it does
+not need a verified domain. Desktop apps must use PKCE, which `api-login` does by
+default (pass `--web-app` for an app registered as Web). Then:
 
 ```bash
 tthq api-login --client-key KEY --client-secret SECRET   # opens TikTok's consent page
